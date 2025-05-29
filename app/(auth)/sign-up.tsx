@@ -2,6 +2,7 @@ import CustomButton from "@/components/CustomButton";
 import InputField from "@/components/InputField";
 import Oauth from "@/components/Oauth";
 import { icons, images } from "@/constants";
+import { fetchAPI } from "@/lib/fetch";
 import { useSignUp } from "@clerk/clerk-expo";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -68,13 +69,35 @@ const SignUp = () => {
       // If verification was completed, set the session to active
       // and redirect the user
       if (signUpAttempt.status === "complete") {
-        // Create a database user
+        try {
+          // Create a database user
+          const response = await fetchAPI("/(api)/user", {
+            method: "POST",
+            body: JSON.stringify({
+              name: form.name,
+              email: form.email,
+              clerkId: signUpAttempt.createdUserId,
+            }),
+          });
 
-        await setActive({ session: signUpAttempt.createdSessionId });
-        setVerification({
-          ...verification,
-          state: "success",
-        });
+          if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || "Failed to create user");
+          }
+
+          await setActive({ session: signUpAttempt.createdSessionId });
+          setVerification({
+            ...verification,
+            state: "success",
+          });
+        } catch (apiError: any) {
+          console.error("API Error:", apiError);
+          setVerification({
+            ...verification,
+            state: "failed",
+            error: apiError.message || "Failed to create user account",
+          });
+        }
       } else {
         setVerification({
           ...verification,
@@ -83,10 +106,11 @@ const SignUp = () => {
         });
       }
     } catch (err: any) {
+      console.error("Verification Error:", err);
       setVerification({
         ...verification,
         state: "failed",
-        error: err.errors[0].longMessage,
+        error: err.errors?.[0]?.longMessage || "Verification failed",
       });
     }
   };
